@@ -27,8 +27,6 @@ import io.reactivex.schedulers.Schedulers;
 import com.afollestad.materialdialogs.MaterialDialog;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.greenaddress.gdk.GDKTwoFactorCall;
 import com.greenaddress.greenapi.JSONMap;
 import com.greenaddress.greenapi.data.AssetInfoData;
 import com.greenaddress.greenapi.data.BalanceData;
@@ -105,7 +103,6 @@ public class TransactionActivity extends LoggedActivity implements View.OnClickL
         } catch (final Exception e) {
             Log.d(TAG, e.getLocalizedMessage());
             finishOnUiThread();
-            return;
         }
     }
 

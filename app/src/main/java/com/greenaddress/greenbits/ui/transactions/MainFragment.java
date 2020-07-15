@@ -11,9 +11,10 @@ import android.view.ViewGroup;
 import android.widget.TextView;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.android.material.appbar.AppBarLayout;
+import com.google.android.material.appbar.CollapsingToolbarLayout;
 import com.greenaddress.greenapi.data.SubaccountData;
 import com.greenaddress.greenapi.data.TransactionData;
-import com.greenaddress.greenbits.GreenAddressApplication;
 import com.greenaddress.greenbits.ui.GAFragment;
 import com.greenaddress.greenbits.ui.GaActivity;
 import com.greenaddress.greenbits.ui.R;
@@ -42,10 +43,12 @@ import androidx.fragment.app.FragmentTransaction;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
+
 import io.reactivex.Observable;
 import io.reactivex.android.schedulers.AndroidSchedulers;
 import io.reactivex.disposables.Disposable;
 import io.reactivex.schedulers.Schedulers;
+
 import com.greenaddress.greenbits.ui.receive.ReceiveActivity;
 
 import static android.app.Activity.RESULT_OK;
@@ -67,6 +70,7 @@ public class MainFragment extends GAFragment implements View.OnClickListener, Li
     private Integer mPageLoaded = 0;
     private Integer mLastPage = Integer.MAX_VALUE;
     private boolean isLoading = false;
+    //private boolean listTransactionsEmpty = true; //Default
 
     private AccountView mAccountView;
     private SwipeRefreshLayout mSwipeRefreshLayout;
@@ -75,6 +79,7 @@ public class MainFragment extends GAFragment implements View.OnClickListener, Li
     private TextView mAssetsSelection;
     private TextView mSwitchNetwork;
     private View mView;
+    private AppBarLayout.LayoutParams params;
 
     private Disposable newTransactionDisposable;
     private Disposable blockDisposable;
@@ -101,9 +106,9 @@ public class MainFragment extends GAFragment implements View.OnClickListener, Li
         float offsetPx = getResources().getDimension(R.dimen.adapter_bar);
         final BottomOffsetDecoration bottomOffsetDecoration = new BottomOffsetDecoration((int) offsetPx);
         txView.addItemDecoration(bottomOffsetDecoration);
-        final GreenAddressApplication app = (GreenAddressApplication) getActivity().getApplication();
-        mTransactionsAdapter = new ListTransactionsAdapter(getGaActivity(), getNetwork(),  mTxItems,
-                                                           getSpv(), this);
+
+        mTransactionsAdapter = new ListTransactionsAdapter(getGaActivity(), getNetwork(), mTxItems,
+                getSpv(), this);
         txView.setAdapter(mTransactionsAdapter);
         txView.addOnScrollListener(recyclerViewOnScrollListener);
 
@@ -127,8 +132,8 @@ public class MainFragment extends GAFragment implements View.OnClickListener, Li
 
         mAssetsSelection = UI.find(mView, R.id.assetsSelection);
         mAssetsSelection.setOnClickListener(v -> startActivityForResult(new Intent(getGaActivity(),
-                                                                                   AssetsSelectActivity.class),
-                                                                        REQUEST_SELECT_ASSET));
+                        AssetsSelectActivity.class),
+                REQUEST_SELECT_ASSET));
         mSwitchNetwork = UI.find(mView, R.id.switchNetwork);
         mSwitchNetwork.setOnClickListener(v -> showDialog());
         mSwitchNetwork.setText(getNetwork().getName());
@@ -136,7 +141,6 @@ public class MainFragment extends GAFragment implements View.OnClickListener, Li
 
         final Drawable arrow = getContext().getResources().getDrawable(R.drawable.ic_expand_more_24dp);
         mSwitchNetwork.setCompoundDrawablesWithIntrinsicBounds(null, null, arrow, null);
-
 
         final SharedPreferences preferences = getActivity().getSharedPreferences(network(), MODE_PRIVATE);
         mActiveAccount = preferences.getInt(PrefKeys.ACTIVE_SUBACCOUNT, 0);
@@ -162,33 +166,33 @@ public class MainFragment extends GAFragment implements View.OnClickListener, Li
     }
 
     @Override
-    public void onResume () {
+    public void onResume() {
         super.onResume();
         if (isZombie())
             return;
 
         // on new block received
         blockDisposable = getSession().getNotificationModel().getBlockObservable()
-                          .observeOn(AndroidSchedulers.mainThread())
-                          .subscribe((blockHeight) -> {
-            mTransactionsAdapter.setCurrentBlock(blockHeight);
-            mTransactionsAdapter.notifyDataSetChanged();
-        });
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe((blockHeight) -> {
+                    mTransactionsAdapter.setCurrentBlock(blockHeight);
+                    mTransactionsAdapter.notifyDataSetChanged();
+                });
 
         // on new transaction received
         settingsDisposable = getSession().getNotificationModel().getSettingsObservable()
-                             .observeOn(AndroidSchedulers.mainThread())
-                             .subscribe((transaction) -> {
-            mTransactionsAdapter.notifyDataSetChanged();
-            update();
-        });
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe((transaction) -> {
+                    mTransactionsAdapter.notifyDataSetChanged();
+                    update();
+                });
 
         // on new transaction received
         newTransactionDisposable = getSession().getNotificationModel().getTransactionObservable()
-                                   .observeOn(AndroidSchedulers.mainThread())
-                                   .subscribe((transaction) -> {
-            update();
-        });
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe((transaction) -> {
+                    update();
+                });
 
         // Update information
         if (mSwipeRefreshLayout != null)
@@ -240,41 +244,53 @@ public class MainFragment extends GAFragment implements View.OnClickListener, Li
             mLastPage = Integer.MAX_VALUE;
         }
         transactionDisposable = Observable.just(getSession())
-                                .observeOn(Schedulers.computation())
-                                .map((session) -> {
-            return getTransactions(mActiveAccount);
-        })
-                                .observeOn(AndroidSchedulers.mainThread())
-                                .subscribe((transactions) -> {
-            isLoading = false;
-            if (mSwipeRefreshLayout != null)
-                mSwipeRefreshLayout.setRefreshing(false);
+                .observeOn(Schedulers.computation())
+                .map((session) -> {
+                    return getTransactions(mActiveAccount);
+                })
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe((transactions) -> {
+                    isLoading = false;
+                    if (mSwipeRefreshLayout != null)
+                        mSwipeRefreshLayout.setRefreshing(false);
 
-            final Sha256Hash oldTop = !mTxItems.isEmpty() ? mTxItems.get(0).getTxhashAsSha256Hash() : null;
-            if (clean)
-                mTxItems.clear();
-            mTxItems.addAll(transactions);
-            mTransactionsAdapter.setCurrentBlock(getSession().getNotificationModel().getBlockHeight());
-            mTransactionsAdapter.notifyDataSetChanged();
-            showTxView(!mTxItems.isEmpty());
+                    final Sha256Hash oldTop = !mTxItems.isEmpty() ? mTxItems.get(0).getTxhashAsSha256Hash() : null;
+                    if (clean)
+                        mTxItems.clear();
+                    mTxItems.addAll(transactions);
+                    mTransactionsAdapter.setCurrentBlock(getSession().getNotificationModel().getBlockHeight());
+                    mTransactionsAdapter.notifyDataSetChanged();
+                    //listTransactionsEmpty = mTxItems.isEmpty(); FIXME: remove this things
+                    showTxView(!mTxItems.isEmpty());
 
-            final Sha256Hash newTop = !mTxItems.isEmpty() ? mTxItems.get(0).getTxhashAsSha256Hash() : null;
-            if (oldTop != null && newTop != null && !oldTop.equals(newTop)) {
-                // A new tx has arrived; scroll to the top to show it
-                final RecyclerView recyclerView = UI.find(mView, R.id.mainTransactionList);
-                recyclerView.smoothScrollToPosition(0);
-            }
-        }, (final Throwable e) -> {
-            Log.d(TAG, e.getLocalizedMessage());
-            isLoading = false;
-            if (mSwipeRefreshLayout != null)
-                mSwipeRefreshLayout.setRefreshing(false);
-        });
+                    final Sha256Hash newTop = !mTxItems.isEmpty() ? mTxItems.get(0).getTxhashAsSha256Hash() : null;
+                    if (oldTop != null && newTop != null && !oldTop.equals(newTop)) {
+                        // A new tx has arrived; scroll to the top to show it
+                        final RecyclerView recyclerView = UI.find(mView, R.id.mainTransactionList);
+                        recyclerView.smoothScrollToPosition(0);
+                    }
+                }, (final Throwable e) -> {
+                    Log.d(TAG, e.getLocalizedMessage());
+                    isLoading = false;
+                    if (mSwipeRefreshLayout != null)
+                        mSwipeRefreshLayout.setRefreshing(false);
+                });
+    }
+
+    private void changeBehaviorScrollView(boolean noScrollEnable) {
+        CollapsingToolbarLayout layoutToolbar = UI.find(mView, R.id.toolbar_layout);
+        params = (AppBarLayout.LayoutParams) layoutToolbar.getLayoutParams();
+        params.setScrollFlags(
+                noScrollEnable ?
+                        AppBarLayout.LayoutParams.SCROLL_FLAG_NO_SCROLL
+                        : AppBarLayout.LayoutParams.SCROLL_FLAG_SCROLL
+        );
+        layoutToolbar.setLayoutParams(params);
     }
 
     private List<TransactionData> getTransactions(final int subaccount) throws Exception {
         final List<TransactionData> txs = getSession().getTransactions(
-            getGaActivity(), subaccount, mPageLoaded * TX_PER_PAGE, TX_PER_PAGE);
+                getGaActivity(), subaccount, mPageLoaded * TX_PER_PAGE, TX_PER_PAGE);
         if (txs.size() < TX_PER_PAGE)
             mLastPage = mPageLoaded;
         mPageLoaded++;
@@ -294,7 +310,6 @@ public class MainFragment extends GAFragment implements View.OnClickListener, Li
     }
 
     private void showDialog() {
-
         FragmentTransaction ft = getFragmentManager().beginTransaction();
         ft.addToBackStack(null);
 
@@ -306,6 +321,7 @@ public class MainFragment extends GAFragment implements View.OnClickListener, Li
     private void showTxView(final boolean doShowTxList) {
         UI.showIf(doShowTxList, UI.find(mView, R.id.mainTransactionList));
         UI.showIf(!doShowTxList, UI.find(mView, R.id.emptyListText));
+        changeBehaviorScrollView(!doShowTxList);
     }
 
     @Override
@@ -383,7 +399,7 @@ public class MainFragment extends GAFragment implements View.OnClickListener, Li
             final boolean isLastPage = mPageLoaded >= mLastPage;
             if (!isLoading && !isLastPage) {
                 if ((visibleItemCount + firstVisibleItemPosition) >= totalItemCount
-                    && firstVisibleItemPosition >= 0) {
+                        && firstVisibleItemPosition >= 0) {
                     loadMoreItems();
                 }
             }

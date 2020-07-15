@@ -21,9 +21,10 @@ public abstract class GAFragment extends Fragment {
         final GaActivity activity = (GaActivity) getActivity();
 
         try {
-            context.getTheme().applyStyle(ThemeUtils.getThemeFromNetworkId(mApp.getCurrentNetwork(), context,
-                                                                           activity.getMetadata()),
-                                          true);
+            context.getTheme().applyStyle(ThemeUtils.getThemeFromNetworkId(mApp.getCurrentNetwork(),
+                    context,
+                    activity.getMetadata()),
+                    true);
         } catch (final Exception e) {
             // Some reports show NullPointer Exception in applying style
             // Applying theme is not mandatory, doing nothing here
@@ -44,7 +45,7 @@ public abstract class GAFragment extends Fragment {
 
     public String network() {
         return PreferenceManager.getDefaultSharedPreferences(getContext()).getString(PrefKeys.NETWORK_ID_ACTIVE,
-                                                                                     "mainnet");
+                "mainnet");
     }
 
     // Returns true if we are being restored without an activity or service
